@@ -7,6 +7,7 @@ from django.contrib.auth.models import User
 
 from django.urls import reverse
 from rest_framework import status
+from rest_framework.exceptions import ErrorDetail
 from rest_framework.test import APITestCase
 
 from store.models import Book
@@ -20,13 +21,14 @@ class BooksApiTestCase(APITestCase):
 
     def setUp(self):
         self.user = User.objects.create(username='test_username')
+        self.user2 = User.objects.create(username='test_username2')
 
         self.book_1 = Book.objects.create(name='Test book 1', price=25,
-                                          author_name='Author1')
+                                          author_name='Author1', owner=self.user)
         self.book_2 = Book.objects.create(name='Test book 2', price=55,
-                                          author_name='Author2')
+                                          author_name='Author2', owner=self.user)
         self.book_3 = Book.objects.create(name='Test book Author1', price=55,
-                                          author_name='Author3')
+                                          author_name='Author3', owner=self.user)
 
     def test_get(self):
         serializer_data = BookSerializer([self.book_1, self.book_2, self.book_3], many=True).data
@@ -83,6 +85,7 @@ class BooksApiTestCase(APITestCase):
         self.assertEqual(4, Book.objects.all().count())
         self.assertEqual(1, Book.objects.filter(name=data['name'], price=data['price'],
                                                 author_name=data['author_name']).count())
+        self.assertEqual(self.user, Book.objects.last().owner)
 
     def test_update(self):
         url = reverse('book-detail', args=(self.book_1.id,))
@@ -103,8 +106,7 @@ class BooksApiTestCase(APITestCase):
 
     def test_delete(self):
         self.book_test = Book.objects.create(name='Test book test', price=55,
-                                             author_name='Author test')
-
+                                             author_name='Author test', owner=self.user)
         book_counter = Book.objects.all().count()
 
         url = reverse('book-detail', args=(self.book_test.id,))
@@ -113,3 +115,46 @@ class BooksApiTestCase(APITestCase):
         response = self.client.delete(url, content_type='application/json', user=user)
         self.assertEqual(status.HTTP_204_NO_CONTENT, response.status_code)
         self.assertEqual(Book.objects.all().count(), book_counter - 1)
+
+    def test_update_not_owner(self):
+        url = reverse('book-detail', args=(self.book_1.id,))
+        user = self.client.force_login(user=self.user2)
+        data = {
+            "name": "Test book 1",
+            "price": "666.00",
+            "author_name": "Author1"
+        }
+        json_data = json.dumps(data)
+        response = self.client.put(url, user=user,
+                                   content_type='application/json', data=json_data)
+
+        self.assertEqual({'detail': ErrorDetail(string='You do not have permission to perform this action.', code='permission_denied')}, response.data)
+        self.assertEqual(status.HTTP_403_FORBIDDEN, response.status_code)
+        self.book_1.refresh_from_db()
+        self.assertNotEqual(self.book_1.price, data['price'])
+
+    def test_delete_not_owner(self):
+        url = reverse('book-detail', args=(self.book_1.id,))
+        user = self.client.force_login(self.user2)
+
+        response = self.client.delete(url, content_type='application/json', user=user)
+        self.assertEqual(status.HTTP_403_FORBIDDEN, response.status_code)
+        self.assertEqual({'detail': ErrorDetail(string='You do not have permission to perform this action.', code='permission_denied')}, response.data)
+
+    def test_update_not_owner_but_staff(self):
+        staff_user = User.objects.create(username='staff_user',
+                                         is_staff=True)
+        url = reverse('book-detail', args=(self.book_1.id,))
+        user = self.client.force_login(user=staff_user)
+        data = {
+            "name": "Test book 1",
+            "price": '666.00',
+            "author_name": "Author1"
+        }
+        json_data = json.dumps(data)
+        response = self.client.put(url, user=user,
+                                   content_type='application/json', data=json_data)
+
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        self.book_1.refresh_from_db()
+        self.assertEqual(self.book_1.price, Decimal(data['price']))
