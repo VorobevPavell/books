@@ -1,7 +1,9 @@
-def operations(a, b, c):
-    if c == '+':
-        return a + b
-    if c == '-':
-        return a - b
-    if c == '*':
-        return a * b
+from django.db.models import Avg
+
+from store.models import BookUserRelation
+
+
+def set_rating(book):
+    rating = BookUserRelation.objects.filter(book=book).aggregate(rating=Avg('rating')).get('rating', 'null')
+    book.rating = rating
+    book.save()

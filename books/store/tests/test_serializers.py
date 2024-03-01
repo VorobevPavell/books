@@ -1,7 +1,6 @@
 import os
-from collections import OrderedDict
-
 import django
+
 from django.contrib.auth.models import User
 from django.db.models import Count, Case, When, Avg, F
 from django.test import TestCase
@@ -34,11 +33,13 @@ class BooksSerializerTestCase(TestCase):
 
         self.relation4 = BookUserRelation.objects.create(book=self.book_2, user=self.user, rating=3)
         self.relation5 = BookUserRelation.objects.create(book=self.book_2, user=self.user2, rating=4)
+        # self.relation6 = BookUserRelation.objects.create(book=self.book_1, user=self.user3)
+        # self.relation6.rating = 4
+        # self.relation6.save()
 
     def test_ok(self):
         books_query = Book.objects.all().annotate(
             annotated_likes=Count(Case(When(bookuserrelation__like=True, then=1))),
-            rating=Avg('bookuserrelation__rating'),
             discount_price=(F('price') - F('discount'))
         ).order_by('id')
         expected_data = BookSerializer(books_query, many=True).data
@@ -93,4 +94,6 @@ class BooksSerializerTestCase(TestCase):
              }
 
         ]
+        print(expected_data)
+        print(data)
         self.assertEqual(expected_data, data)

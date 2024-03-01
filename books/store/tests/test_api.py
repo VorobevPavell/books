@@ -40,7 +40,6 @@ class BooksApiTestCase(APITestCase):
     def test_get(self):
         books = Book.objects.all().annotate(
             annotated_likes=Count(Case(When(bookuserrelation__like=True, then=1))),
-            rating=Avg('bookuserrelation__rating'),
             discount_price=F('price') - F('discount')
         ).order_by('id')
         serializer_data = BookSerializer(books, many=True).data
@@ -61,7 +60,6 @@ class BooksApiTestCase(APITestCase):
     def test_get_filter(self):
         books = Book.objects.filter(id__in=[self.book_3.id]).annotate(
             annotated_likes=Count(Case(When(bookuserrelation__like=True, then=1))),
-            rating=Avg('bookuserrelation__rating'),
             discount_price=F('price') - F('discount')
         )
         serializer_data = BookSerializer(books, many=True).data
@@ -75,7 +73,6 @@ class BooksApiTestCase(APITestCase):
     def test_get_search(self):
         books = Book.objects.filter(id__in=[self.book_1.id, self.book_3.id]).annotate(
             annotated_likes=Count(Case(When(bookuserrelation__like=True, then=1))),
-            rating=Avg('bookuserrelation__rating'),
             discount_price=F('price') - F('discount'),
             owner_name=F('readers__username')
         )
@@ -91,7 +88,6 @@ class BooksApiTestCase(APITestCase):
     def test_get_ordering(self):
         books = Book.objects.all().annotate(
             annotated_likes=Count(Case(When(bookuserrelation__like=True, then=1))),
-            rating=Avg('bookuserrelation__rating'),
             discount_price=F('price') - F('discount')
         ).order_by('price')
         serializer_data = BookSerializer(books, many=True).data
@@ -261,11 +257,3 @@ class BookUserRelationTestCase(APITestCase):
         response = self.client.patch(url, data=json_data,
                                      user=user, content_type='application/json')
         self.assertNotEqual(status.HTTP_200_OK, response.status_code, response.data)
-
-# [OrderedDict([('id', 14), ('name', 'Test book 1'), ('price', '25.00'), ('author_name', 'Author1'), ('annotated_likes', 1), ('rating', '5.00'), ('discount_price', 25), ('owner_name', 'test_username'), ('readers', [OrderedDict([('first_name', 'Ivan'), ('last_name', 'Ivanov'), ('is_staff', False)])])]),
-#  OrderedDict([('id', 15), ('name', 'Test book 2'), ('price', '50.00'), ('author_name', 'Author2'), ('annotated_likes', 0), ('rating', None), ('discount_price', 12), ('owner_name', 'test_username'), ('readers', [])]),
-#  OrderedDict([('id', 16), ('name', 'Test book Author1'), ('price', '55.00'), ('author_name', 'Author3'), ('annotated_likes', 0), ('rating', None), ('discount_price', 55), ('owner_name', 'test_username'), ('readers', [])])]
-#
-# [OrderedDict([('id', 15), ('name', 'Test book 2'), ('price', '50.00'), ('author_name', 'Author2'), ('annotated_likes', 0), ('rating', None), ('discount_price', 12), ('owner_name', 'test_username'), ('readers', [])]),
-# OrderedDict([('id', 14), ('name', 'Test book 1'), ('price', '25.00'), ('author_name', 'Author1'), ('annotated_likes', 1), ('rating', '5.00'), ('discount_price', 25), ('owner_name', 'test_username'), ('readers', [OrderedDict([('first_name', 'Ivan'), ('last_name', 'Ivanov'), ('is_staff', False)])])]),
-# OrderedDict([('id', 16), ('name', 'Test book Author1'), ('price', '55.00'), ('author_name', 'Author3'), ('annotated_likes', 0), ('rating', None), ('discount_price', 55), ('owner_name', 'test_username'), ('readers', [])])]
