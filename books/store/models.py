@@ -10,6 +10,7 @@ class Book(models.Model):
                               null=True, related_name='my_books')
     readers = models.ManyToManyField(User, through='BookUserRelation',
                                      related_name='books')
+    discount = models.IntegerField(default=0)
 
     def __str__(self):
         return f"Id {self.id}: {self.name}"

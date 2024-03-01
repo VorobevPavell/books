@@ -4,7 +4,7 @@ from decimal import Decimal
 
 import django
 from django.contrib.auth.models import User
-from django.db.models import Count, Case, When, Avg
+from django.db.models import Count, Case, When, Avg, F
 
 from django.urls import reverse
 from rest_framework import status
@@ -27,7 +27,7 @@ class BooksApiTestCase(APITestCase):
         self.book_1 = Book.objects.create(name='Test book 1', price=25,
                                           author_name='Author1', owner=self.user)
         self.book_2 = Book.objects.create(name='Test book 2', price=55,
-                                          author_name='Author2', owner=self.user)
+                                          author_name='Author2', owner=self.user, discount=38)
         self.book_3 = Book.objects.create(name='Test book Author1', price=55,
                                           author_name='Author3', owner=self.user)
 
@@ -36,22 +36,24 @@ class BooksApiTestCase(APITestCase):
     def test_get(self):
         books = Book.objects.all().annotate(
             annotated_likes=Count(Case(When(bookuserrelation__like=True, then=1))),
-            rating=Avg('bookuserrelation__rating')
+            rating=Avg('bookuserrelation__rating'),
+            discount_price=F('price') - F('discount')
         )
         serializer_data = BookSerializer(books, many=True).data
         url = reverse('book-list')
         response = self.client.get(url)
         self.assertEqual(serializer_data, response.data)
         self.assertEqual(status.HTTP_200_OK, response.status_code)
-        self.assertEqual('5.00', serializer_data[0]['rating'])
-        self.assertEqual(1, serializer_data[0]['like_counter'])
-        self.assertEqual(1, serializer_data[0]['annotated_likes'])
-
+        self.assertEqual('5.00', serializer_data[2]['rating'])
+        self.assertEqual(1, serializer_data[2]['like_counter'])
+        self.assertEqual(1, serializer_data[2]['annotated_likes'])
+        self.assertEqual(17, serializer_data[1]['discount_price'])
 
     def test_get_filter(self):
         books = Book.objects.filter(id__in=[self.book_2.id, self.book_3.id]).annotate(
             annotated_likes=Count(Case(When(bookuserrelation__like=True, then=1))),
-            rating=Avg('bookuserrelation__rating')
+            rating=Avg('bookuserrelation__rating'),
+            discount_price=F('price') - F('discount')
         )
         serializer_data = BookSerializer(books, many=True).data
         url = reverse('book-list')
@@ -64,7 +66,8 @@ class BooksApiTestCase(APITestCase):
     def test_get_search(self):
         books = Book.objects.filter(id__in=[self.book_1.id, self.book_3.id]).annotate(
             annotated_likes=Count(Case(When(bookuserrelation__like=True, then=1))),
-            rating=Avg('bookuserrelation__rating')
+            rating=Avg('bookuserrelation__rating'),
+            discount_price=F('price') - F('discount')
         )
         serializer_data = BookSerializer(books, many=True).data
         url = reverse('book-list')
@@ -78,7 +81,8 @@ class BooksApiTestCase(APITestCase):
     def test_get_ordering(self):
         books = Book.objects.all().annotate(
             annotated_likes=Count(Case(When(bookuserrelation__like=True, then=1))),
-            rating=Avg('bookuserrelation__rating')
+            rating=Avg('bookuserrelation__rating'),
+            discount_price=F('price') - F('discount')
         ).order_by('price')
         serializer_data = BookSerializer(books, many=True).data
         url = reverse('book-list')

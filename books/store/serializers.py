@@ -8,11 +8,12 @@ class BookSerializer(ModelSerializer):
     like_counter = serializers.SerializerMethodField()
     annotated_likes = serializers.IntegerField(read_only=True)
     rating = serializers.DecimalField(max_digits=3, decimal_places=2, read_only=True)
+    discount_price = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = Book
         fields = ('id', 'name', 'price', 'author_name',
-                  'like_counter', 'annotated_likes', 'rating')
+                  'like_counter', 'annotated_likes', 'rating', 'discount_price')
 
     @staticmethod
     def get_like_counter(instance: Book):
