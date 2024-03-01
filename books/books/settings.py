@@ -20,6 +20,7 @@ INSTALLED_APPS = [
 
     # Third-party
     'social_django',
+    'debug_toolbar',
 
     # Local
     'store',
@@ -33,6 +34,8 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    "debug_toolbar.middleware.DebugToolbarMiddleware",
+    'debug_toolbar_force.middleware.ForceDebugToolbarMiddleware',
 ]
 
 AUTHENTICATION_BACKENDS = (
@@ -120,3 +123,7 @@ SOCIAL_AUTH_JSONFIELD_ENABLED = True
 
 SOCIAL_AUTH_GITHUB_KEY = 'b3ec7ba15857daf4f25e'
 SOCIAL_AUTH_GITHUB_SECRET = '0a647ba6f7778721202abec0328846f4f1405916'
+
+INTERNAL_IPS = [
+    "127.0.0.1",
+]

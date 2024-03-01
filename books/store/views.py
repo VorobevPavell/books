@@ -16,7 +16,7 @@ class BooksViewSet(ModelViewSet):
         annotated_likes=Count(Case(When(bookuserrelation__like=True, then=1))),
         rating=Avg('bookuserrelation__rating'),
         discount_price=F('price') - F('discount')
-    )
+    ).select_related('owner').prefetch_related('readers')
     serializer_class = BookSerializer
     permission_classes = [IsOwnerOrStaffOrReadOnly]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]

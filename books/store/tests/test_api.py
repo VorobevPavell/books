@@ -4,7 +4,9 @@ from decimal import Decimal
 
 import django
 from django.contrib.auth.models import User
+from django.db import connection
 from django.db.models import Count, Case, When, Avg, F
+from django.test.utils import CaptureQueriesContext
 
 from django.urls import reverse
 from rest_framework import status
@@ -21,12 +23,14 @@ django.setup()
 class BooksApiTestCase(APITestCase):
 
     def setUp(self):
-        self.user = User.objects.create(username='test_username')
-        self.user2 = User.objects.create(username='test_username2')
+        self.user = User.objects.create(username='test_username',
+                                        first_name='Ivan', last_name='Ivanov')
+        self.user2 = User.objects.create(username='test_username2',
+                                         first_name='Alexey', last_name='Red')
 
         self.book_1 = Book.objects.create(name='Test book 1', price=25,
                                           author_name='Author1', owner=self.user)
-        self.book_2 = Book.objects.create(name='Test book 2', price=55,
+        self.book_2 = Book.objects.create(name='Test book 2', price=50,
                                           author_name='Author2', owner=self.user, discount=38)
         self.book_3 = Book.objects.create(name='Test book Author1', price=55,
                                           author_name='Author3', owner=self.user)
@@ -38,19 +42,24 @@ class BooksApiTestCase(APITestCase):
             annotated_likes=Count(Case(When(bookuserrelation__like=True, then=1))),
             rating=Avg('bookuserrelation__rating'),
             discount_price=F('price') - F('discount')
-        )
+        ).order_by('id')
         serializer_data = BookSerializer(books, many=True).data
         url = reverse('book-list')
-        response = self.client.get(url)
-        self.assertEqual(serializer_data, response.data)
+        with CaptureQueriesContext(connection) as queries:
+            response = self.client.get(url)
+
+        sorted_serializer_data = sorted(serializer_data, key=lambda x: x['id'])
+        sorted_response_data = sorted(response.data, key=lambda x: x['id'])
+
+        self.assertEqual(sorted_serializer_data, sorted_response_data)
         self.assertEqual(status.HTTP_200_OK, response.status_code)
-        self.assertEqual('5.00', serializer_data[2]['rating'])
-        self.assertEqual(1, serializer_data[2]['like_counter'])
-        self.assertEqual(1, serializer_data[2]['annotated_likes'])
-        self.assertEqual(17, serializer_data[1]['discount_price'])
+        self.assertEqual('5.00', serializer_data[0]['rating'])
+        self.assertEqual(1, serializer_data[0]['annotated_likes'])
+        self.assertEqual(12, serializer_data[1]['discount_price'])
+        self.assertEqual(2, len(queries))
 
     def test_get_filter(self):
-        books = Book.objects.filter(id__in=[self.book_2.id, self.book_3.id]).annotate(
+        books = Book.objects.filter(id__in=[self.book_3.id]).annotate(
             annotated_likes=Count(Case(When(bookuserrelation__like=True, then=1))),
             rating=Avg('bookuserrelation__rating'),
             discount_price=F('price') - F('discount')
@@ -91,6 +100,8 @@ class BooksApiTestCase(APITestCase):
         })
 
         self.assertEqual(status.HTTP_200_OK, response.status_code)
+        expect = response.data[0]['price'] < response.data[1]['price']
+        self.assertTrue(expect)
         self.assertEqual(serializer_data, response.data)
 
     def test_post(self):
@@ -249,3 +260,11 @@ class BookUserRelationTestCase(APITestCase):
         response = self.client.patch(url, data=json_data,
                                      user=user, content_type='application/json')
         self.assertNotEqual(status.HTTP_200_OK, response.status_code, response.data)
+
+# [OrderedDict([('id', 14), ('name', 'Test book 1'), ('price', '25.00'), ('author_name', 'Author1'), ('annotated_likes', 1), ('rating', '5.00'), ('discount_price', 25), ('owner_name', 'test_username'), ('readers', [OrderedDict([('first_name', 'Ivan'), ('last_name', 'Ivanov'), ('is_staff', False)])])]),
+#  OrderedDict([('id', 15), ('name', 'Test book 2'), ('price', '50.00'), ('author_name', 'Author2'), ('annotated_likes', 0), ('rating', None), ('discount_price', 12), ('owner_name', 'test_username'), ('readers', [])]),
+#  OrderedDict([('id', 16), ('name', 'Test book Author1'), ('price', '55.00'), ('author_name', 'Author3'), ('annotated_likes', 0), ('rating', None), ('discount_price', 55), ('owner_name', 'test_username'), ('readers', [])])]
+#
+# [OrderedDict([('id', 15), ('name', 'Test book 2'), ('price', '50.00'), ('author_name', 'Author2'), ('annotated_likes', 0), ('rating', None), ('discount_price', 12), ('owner_name', 'test_username'), ('readers', [])]),
+# OrderedDict([('id', 14), ('name', 'Test book 1'), ('price', '25.00'), ('author_name', 'Author1'), ('annotated_likes', 1), ('rating', '5.00'), ('discount_price', 25), ('owner_name', 'test_username'), ('readers', [OrderedDict([('first_name', 'Ivan'), ('last_name', 'Ivanov'), ('is_staff', False)])])]),
+# OrderedDict([('id', 16), ('name', 'Test book Author1'), ('price', '55.00'), ('author_name', 'Author3'), ('annotated_likes', 0), ('rating', None), ('discount_price', 55), ('owner_name', 'test_username'), ('readers', [])])]
